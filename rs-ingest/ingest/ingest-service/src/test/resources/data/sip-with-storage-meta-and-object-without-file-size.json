@@ -1,0 +1,143 @@
+{
+  "type": "FeatureCollection",
+  "metadata": {
+    "versioningMode": "INC_VERSION",
+    "sessionOwner": "validation",
+    "session": "REGARDS-2252",
+    "ingestChain": "DefaultProcessingChain",
+    "categories": [],
+    "storages": [
+      {
+        "pluginBusinessId": "LOCAL-ALL",
+        "targetTypes": []
+      },
+      {
+        "pluginBusinessId": "LOCAL-SMALL",
+        "targetTypes": [
+          "RAWDATA"
+        ],
+        "size": {
+          "min": 10,
+          "max": 20
+        }
+      }
+    ]
+  },
+  "features": [
+    {
+      "type": "Feature",
+      "id": "test-sip-with-storage-meta-1",
+      "ipType": "DATA",
+      "geometry": null,
+      "properties": {
+        "contentInformations": [
+          {
+            "dataObject": {
+              "regardsDataType": "RAWDATA",
+              "filename": "simple_sip_01.dat",
+              "locations": [
+                {
+                  "url": "file:///input/validation/data/simple_sip_01.dat"
+                }
+              ],
+              "checksum": "aef21e8c5d28de881f2d39f4b36f4199",
+              "algorithm": "MD5",
+              "fileSize": 10
+            },
+            "representationInformation": {
+              "syntax": {
+                "name": "application",
+                "mimeType": "application/octet-stream"
+              }
+            }
+          },
+          {
+            "dataObject": {
+              "regardsDataType": "RAWDATA",
+              "filename": "simple_sip_02.dat",
+              "locations": [
+                {
+                  "url": "file:///input/validation/data/simple_sip_01.dat"
+                }
+              ],
+              "checksum": "aef21e8c5d28de881f2d39f4b36f4199",
+              "algorithm": "MD5"
+            },
+            "representationInformation": {
+              "syntax": {
+                "name": "application",
+                "mimeType": "application/octet-stream"
+              }
+            }
+          }
+        ],
+        "pdi": {
+          "contextInformation": {
+            "tags": [
+              "DATASET-WITH-META"
+            ]
+          },
+          "provenanceInformation": {
+            "history": []
+          },
+          "accessRightInformation": {}
+        },
+        "descriptiveInformation": {
+          "longValue": 20100,
+          "creationdate": "2015-10-20T16:21:15Z",
+          "doubleValue": 3.141592655,
+          "dataSetType": "chris_harvest_simple_model",
+          "label": "Simple Model Sip 01"
+        }
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "test-sip-with-storage-meta-2",
+      "ipType": "DATA",
+      "geometry": null,
+      "properties": {
+        "contentInformations": [
+          {
+            "dataObject": {
+              "regardsDataType": "RAWDATA",
+              "filename": "simple_sip_02.dat",
+              "locations": [
+                {
+                  "url": "file:///input/validation/data/simple_sip_02.dat"
+                }
+              ],
+              "checksum": "aef21e8c5d28de881f2d39f4b36f4110",
+              "algorithm": "MD5",
+              "fileSize": 10
+            },
+            "representationInformation": {
+              "syntax": {
+                "name": "application",
+                "mimeType": "application/octet-stream"
+              }
+            }
+          }
+        ],
+        "pdi": {
+          "contextInformation": {
+            "tags": [
+              "DATASET-WITH-META"
+            ]
+          },
+          "provenanceInformation": {
+            "history": []
+          },
+          "accessRightInformation": {}
+        },
+        "descriptiveInformation": {
+          "longValue": 20100,
+          "creationdate": "2015-10-20T16:21:15Z",
+          "doubleValue": 3.141592655,
+          "dataSetType": "chris_harvest_simple_model",
+          "label": "Simple Model Sip 02"
+        }
+      }
+    }
+  ]
+}

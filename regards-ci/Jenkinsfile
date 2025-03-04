@@ -1,0 +1,352 @@
+#!/usr/bin/env groovy
+
+/*
+ * Copyright 2017-2022 CNES - CENTRE NATIONAL d'ETUDES SPATIALES
+ *
+ * This file is part of REGARDS.
+ *
+ * REGARDS is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * REGARDS is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with REGARDS. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+/**
+ * Declarative Jenkinsfile. The language is Groovy.
+ * Contains the definition of a Jenkins Pipeline, is checked into source control
+ * and is expected to be the reference.
+ * To fully support multibranch builds without issues, we are using docker-compose to setup cots for each build.
+ *
+ * @see https://jenkins.io/doc/book/pipeline/jenkinsfile/
+ */
+
+pipeline {
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '5', artifactNumToKeepStr: '2'))
+        disableConcurrentBuilds()
+        parallelsAlwaysFailFast()
+    }
+    environment {
+        PROJECT_NAME = "${JOB_NAME}-${BUILD_NUMBER}"
+        REGARDS_HOME = "${WORKSPACE}"
+        MVN_IMAGE = "172.26.46.158/regards-maven-jdk:v2"
+        JAVA_IMAGE = "172.26.46.158/regards-java-alpine:17v3"
+        BRANCH_NAME_VERSION = "${BRANCH_NAME.replaceAll('[^A-Za-z0-9._-]', '')}-SNAPSHOT"
+    }
+    parameters {
+        booleanParam(name: 'DOCKER_IMAGE_FAST_GENERATION', defaultValue: false, description: 'Enable fast docker images generation')
+        booleanParam(name: 'DOCKER_IMAGE_GENERATION', defaultValue: false, description: 'Enable docker images generation')
+        booleanParam(name: 'DEPLOY_ARTIFACTS', defaultValue: false, description: 'Enable artifacts deploy')
+        booleanParam(name: 'INCREMENTAL_BUILD', defaultValue: true, description: 'Enable incremental build (calculate hashes and dependency tree)')
+        booleanParam(name: 'SKIP_TESTS', defaultValue: false, description: 'Skip tests')
+        booleanParam(name: 'STOP_BUILD_ON_TEST_ERROR', defaultValue: true, description: 'Stop the build when some microservice test fails')
+    }
+    agent { label 'unix-integration' }
+    stages {
+        stage('Preparation') {
+            steps {
+                echo "Jenkins node name = ${env.NODE_NAME}"
+                echo "Current workspace = ${env.WORKSPACE}"
+                echo "Artefacts version saved inside local repository (available on all jenkins slaves) = ${env.BRANCH_NAME_VERSION}"
+                echo "Docker Fast image tag = fast-${env.BRANCH_NAME_VERSION}"
+                echo "Generate & deploy fast docker images = ${params.DOCKER_IMAGE_FAST_GENERATION}"
+                echo "Generate & deploy docker images = ${params.DOCKER_IMAGE_GENERATION}"
+                echo "Using incremental build = ${params.INCREMENTAL_BUILD}"
+                echo "Skip tests = ${params.SKIP_TESTS}"
+                echo "Stop the build when some microservice test fails = ${params.STOP_BUILD_ON_TEST_ERROR}"
+            }
+        }
+        stage('Hashes calculation') {
+            when {
+                anyOf { 
+                   expression { params.INCREMENTAL_BUILD == true }
+                }
+            }
+            steps {
+                runMavenDockerImgWithoutCoTS("Build dependency tree", "dependencies")
+                runMavenDockerImgWithoutCoTS("Build modules hashes", "hashes")
+            }
+        }
+        stage("Compilation") {
+            steps {
+                runMavenDockerImgWithoutCoTS("Build with docker profile", "compile")
+            }
+        }
+        stage("Fast docker image deploy") {
+            when {
+                anyOf { 
+                   expression { params.DOCKER_IMAGE_FAST_GENERATION == true }
+                   branch pattern: /(master|develop.*|release.*)/, comparator: "REGEXP"
+                }
+            }
+            steps {
+                runMavenDockerImgWithoutCoTS("Build/Deploy docker images", "deployFastDockerImages")
+            }
+        }
+        stage("Tests Preparation") {
+            when {
+                anyOf { 
+                   expression { params.SKIP_TESTS == false }
+                }
+            }
+            steps {
+                sh label: "Pull docker images", script: 'docker-compose -f ' + CI_DIR + '/docker/docker-compose-cots.yml pull \
+                        && docker pull ' + MVN_IMAGE + ' && docker pull ' + JAVA_IMAGE
+                sh label: "Launch COTS", script: 'docker-compose \
+                        -f ' + CI_DIR + '/docker/docker-compose-cots.yml \
+                        -p ' + PROJECT_NAME + ' \
+                        up -d'
+            }
+        }
+
+        stage('Run tests') {
+            when {
+                anyOf { 
+                   expression { params.SKIP_TESTS == false }
+                }
+            }
+            parallel {
+                stage('-1-') {
+                    stages {
+                        stage('Bom') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-bom", params.STOP_BUILD_ON_TEST_ERROR, true)
+                            }
+                        }
+                        stage('Microservice') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-microservice", params.STOP_BUILD_ON_TEST_ERROR, true)
+                            }
+                        }
+                        stage('Cloud') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-cloud", params.STOP_BUILD_ON_TEST_ERROR, true)
+                            }
+                        }
+                        stage('Ingest') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-ingest", params.STOP_BUILD_ON_TEST_ERROR, true)
+                            }
+                        }
+                        stage('Fem') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-fem", params.STOP_BUILD_ON_TEST_ERROR, true)
+                            }
+                        }
+                        stage('Worker manager') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-worker-manager", params.STOP_BUILD_ON_TEST_ERROR, true)
+                            }
+                        }
+                        stage('Lta manager') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-lta-manager", params.STOP_BUILD_ON_TEST_ERROR, true)
+                            }
+                        }
+                        stage('Delivery') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-delivery", params.STOP_BUILD_ON_TEST_ERROR, true)
+                            }
+                        }
+                    }
+                }
+                stage('-2-') {
+                    stages {
+                        stage('Admin') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-admin", params.STOP_BUILD_ON_TEST_ERROR, false)
+                            }
+                        }
+                        stage('Dam') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-dam", params.STOP_BUILD_ON_TEST_ERROR, false)
+                            }
+                        }
+                        stage('Catalog') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-catalog", params.STOP_BUILD_ON_TEST_ERROR, false)
+                            }
+                        }
+                        stage('Access') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-access", params.STOP_BUILD_ON_TEST_ERROR, false)
+                            }
+                        }
+                        stage('Notifier') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-notifier", params.STOP_BUILD_ON_TEST_ERROR, false)
+                            }
+                        }
+                        stage('Storage') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-storage", params.STOP_BUILD_ON_TEST_ERROR, false)
+                            }
+                        }
+                        stage('Dataprovider') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-dataprovider", params.STOP_BUILD_ON_TEST_ERROR, false)
+                            }
+                        }
+                        stage('Order') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-order", params.STOP_BUILD_ON_TEST_ERROR, false)
+                            }
+                        }
+                        stage('processing') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-processing", params.STOP_BUILD_ON_TEST_ERROR, false)
+                            }
+                        }
+                        stage('File Catalog') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-file-catalog", params.STOP_BUILD_ON_TEST_ERROR, false)
+                            }
+                        }
+                        stage('File Access') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-file-access", params.STOP_BUILD_ON_TEST_ERROR, false)
+                            }
+                        }
+                        stage('File Packager') {
+                            steps {
+                                runMavenDockerImg("tests", "rs-file-packager", params.STOP_BUILD_ON_TEST_ERROR, false)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        stage("Deploy artifacts") {
+            when {
+                anyOf {
+                    expression { params.DEPLOY_ARTIFACTS == true }
+                    branch pattern: /(master|develop.*|release.*|feature\/dma_.*|hotfix\/dma_.*)/, comparator: "REGEXP"
+                }
+            }
+            steps {
+                runMavenDockerImgWithoutCoTS("Deploy Maven Artifacts", "deployMvnArtifacts")
+            }
+        }
+        stage("Deploy Docker images") {
+            when {
+                anyOf { 
+                   expression { params.DOCKER_IMAGE_GENERATION == true }
+                   branch pattern: /(master|develop.*|release.*)/, comparator: "REGEXP"
+                }
+            }
+            steps {
+                runMavenDockerImgWithoutCoTS("Build/Deploy stable docker images", "deployDockerImages")
+            }
+        }
+    }
+    post {
+        always {
+            // Always send new successfull modules hashes to nexus
+            script {
+                if (params.INCREMENTAL_BUILD == true && params.SKIP_TESTS == false) {
+                    // Only send new hashes files to nexus if tests are not skiped. The purpose of this file is to 
+                    // run tests only for modified modules. So if tests are skipped we must not send the new hashes file.
+                    runMavenDockerImgWithoutCoTS('POST-ALWAYS-TASK -- Send new successfull modules hashes to nexus', "updateHashes")
+                }
+            }
+        }
+        failure {
+            echo 'POST-FAILURE-TASK -- The build FAILED, let\'s print all COTS logs'
+
+            // Log COTS only if they are existing
+            sh label: "POST-FAILURE-TASK -- Print ElasticSearch logs", script: 'cd ' + CI_DIR + ' \
+                && docker-compose -f docker/docker-compose-cots.yml -p ' + PROJECT_NAME + ' logs rs-elasticsearch', returnStatus: true
+
+            sh label: "POST-FAILURE-TASK -- Print Postgres logs", script: 'cd ' + CI_DIR + ' \
+                && docker-compose -f docker/docker-compose-cots.yml -p ' + PROJECT_NAME + ' logs rs-postgres', returnStatus: true
+
+            sh label: "POST-FAILURE-TASK -- Print First RabbitMQ logs", script: 'cd ' + CI_DIR + ' \
+                && docker-compose -f docker/docker-compose-cots.yml -p ' + PROJECT_NAME + ' logs rs-rabbitmq-first', returnStatus: true
+            sh label: "POST-FAILURE-TASK -- Print Second RabbitMQ logs", script: 'cd ' + CI_DIR + ' \
+                && docker-compose -f docker/docker-compose-cots.yml -p ' + PROJECT_NAME + ' logs rs-rabbitmq-second', returnStatus: true
+
+            sh label: "POST-FAILURE-TASK -- Print S3 Minio logs", script: 'cd ' + CI_DIR + ' \
+               && docker-compose -f docker/docker-compose-cots.yml -p ' + PROJECT_NAME + ' logs rs-minio', returnStatus: true
+        }
+        cleanup {
+            script {
+                if (params.SKIP_TESTS == false) {
+                    sh label: 'POST-CLEANUP-TASK -- Stop CoTs', script: 'docker-compose -f ' + CI_DIR + '/docker/docker-compose-cots.yml -p ' + PROJECT_NAME + ' down'
+                }
+                sh label: "POST-CLEANUP-TASK -- Remove maven containers", script: "/bin/bash -c 'docker ps --format \"{{ .ID }} {{ .Names }} {{ .Status }}\" | grep -E " +
+                    PROJECT_NAME.replaceAll("[^a-zA-Z0-9]", "").toLowerCase() + " | grep -E Up | cut -f 2 -d \" \" | xargs --no-run-if-empty docker rm -f '"
+                sh label: 'POST-CLEANUP-TASK -- Rewrire owner and access rights, to avoid future build having files issues', script: 'chown -R jenkins:jenkins . \
+                        && chmod -R u+rwx . \
+                        && chmod -R g+rwx .'
+            }
+        }
+    }
+}
+
+// Return the shell to execute to run a docker container using rs-maven-ci image
+// @params label Label to display on Blue Ocean
+// @params mode Expected mode (see ci script file)
+// @params containerName postfix used when creating the docker container name
+// @params regardsMs the pom submodule to restrict on
+// @params nbMaxCpu maximum number of cpu the container can use
+// @params isRequiringCots true when the container will use CoTs
+// @params isRabbitMqIdFirst should use the first rabbitMQ
+@NonCPS
+def runMavenDockerImg(label, mode, containerName, regardsMs, nbMaxCpu, isRequiringCots, isRabbitMqIdFirst) {
+    // Transform PROJECT_NAME to what Docker will use for CoTS names
+    // regards-oss-backend/feature%2Fimprove_jenkins_stages-31
+    // become
+    // regardsossbackendfeature2fimprovejenkinsstages31
+    def dockerProject = PROJECT_NAME.replaceAll("[^a-zA-Z0-9]", "").toLowerCase()
+    def ignoreHash = !params.INCREMENTAL_BUILD ? "true" : ""
+    def dockerCommand = 'docker run --rm -i  --cpus=' + nbMaxCpu + '                                           \
+                        --name ' + dockerProject + '_maven_' + containerName + '                               \
+                        -v ${WORKSPACE}:/app_to_build                                                          \
+                        -v /DATA/maven-multibranch-repository:/localRepository                                 \
+                        -v /usr/bin/docker:/bin/docker                                                         \
+                        -v /var/run/docker.sock:/var/run/docker.sock                                           \
+                        -e BRANCH_NAME="${BRANCH_NAME}"                                                        \
+                        -e BRANCH_NAME_VERSION="${BRANCH_NAME_VERSION}"                                        \
+                        -e WORKSPACE="${WORKSPACE}"                                                            \
+                        -e IGNORE_HASH="' + ignoreHash + '"                                                    \
+                        -e COMPILE_MULTI_THREADS="yes"                                                         \
+                        -e MODE="' + mode + '"                                                                 \
+                        -e REGARDS_HOME=/app_to_build                                                          \
+                        -e REGARDS_MS="' + regardsMs + '"                                                      '
+    if (isRequiringCots) {
+        def rabbitMqId = isRabbitMqIdFirst ? 'first' : 'second'
+        dockerCommand += '-e COTS="rs-elasticsearch:9300 rs-rabbitmq:5672 rs-postgres:5432 rs-minio:9000"   \
+                         --link ' + dockerProject + '_rs-rabbitmq-' + rabbitMqId + '_1:rs-rabbitmq             \
+                         --link ' + dockerProject + '_rs-elasticsearch_1:rs-elasticsearch                      \
+                         --link ' + dockerProject + '_rs-minio_1:rs-minio                                \
+                         --link ' + dockerProject + '_rs-postgres_1:rs-postgres                                '
+    }
+    dockerCommand += ' --network="regards_IT_network"                                                       \
+                        ' + MVN_IMAGE
+    sh script: dockerCommand, label: label
+}
+// Use it when you don't need any COTS
+def runMavenDockerImgWithoutCoTS(taskMainLabel, mode) {
+    def label = taskMainLabel + " using maven container with mode=[" + mode + "]"
+    runMavenDockerImg(label, mode, mode, "", 4, false, false)
+}
+
+// Use it when you want CoTS
+def runMavenDockerImg(mode, regardsMs, failOnError, useParallelOne) {
+    def label = "Run " + mode + " on [" + regardsMs + "] using maven container. This tasks use CoTs and first RabbitMQ?=[" + useParallelOne + "]"
+    if(failOnError){
+        runMavenDockerImg(label, mode, regardsMs, regardsMs, 2, true, useParallelOne)
+    } else {
+        catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+            runMavenDockerImg(label, mode, regardsMs, regardsMs, 2, true, useParallelOne)
+        }
+    }
+}

@@ -1,0 +1,9 @@
+{
+  "workflowType": "content1",
+  "steps": [
+    {
+      "stepNumber": 1,
+      "workerType": "workerType1"
+    }
+  ]
+}

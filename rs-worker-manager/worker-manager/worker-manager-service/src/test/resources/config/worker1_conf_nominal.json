@@ -1,0 +1,8 @@
+{
+  "workerType": "workerType1",
+  "contentTypeInputs": [
+    "content1",
+    "content2"
+  ],
+  "contentTypeOutput": "content3"
+}

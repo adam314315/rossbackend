@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<requirements>
+    <requirement ref="REGARDS_DSL_ADM_ADM_440">
+        <test>
+            <purpose>Check that the system allows to send an email to a list of recipients.</purpose>
+            <name>sendEmail</name>
+            <class>fr.cnes.regards.modules.emails.rest.EmailControllerIT</class>
+        </test>
+    </requirement>
+    <requirement ref="REGARDS_DSL_ADM_ADM_450">
+        <test>
+            <purpose>Check that the system allows to send an email to a list of recipients.</purpose>
+            <name>sendEmail</name>
+            <class>fr.cnes.regards.modules.emails.rest.EmailControllerIT</class>
+        </test>
+    </requirement>
+</requirements>
