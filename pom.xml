@@ -92,7 +92,7 @@
         <!-- By the way bcprov-jdk18on 1.78.1 is available so... -->
         <bcprov-jdk18on.version>${bcpkix.version}</bcprov-jdk18on.version>
 
-        <org.springframework.hateoas.version>2.2.0</org.springframework.hateoas.version>
+        <org.springframework.hateoas.version>2.3.4</org.springframework.hateoas.version>
 
         <!-- Hibernate -->
         <!-- FIXME : 6.4.0.Final available but array_append function call doesn't work in SpecificationUtils, a priori
