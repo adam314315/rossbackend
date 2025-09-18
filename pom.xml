@@ -142,7 +142,7 @@
         <dockerfile-maven-plugin.version>1.4.13</dockerfile-maven-plugin.version>
         <spring-boot-maven-plugin.version>${spring.boot.version}</spring-boot-maven-plugin.version>
         <!-- 6.2.1 available but database lock tests fail with this version -->
-        <spring-integration-jdbc.version>5.5.20</spring-integration-jdbc.version>
+        <spring-integration-jdbc.version>6.4.7</spring-integration-jdbc.version>
         <asciidoctor-maven-plugin.version>2.2.4</asciidoctor-maven-plugin.version>
         <jib-maven-plugin.version>3.4.1</jib-maven-plugin.version>
 
@@ -154,7 +154,7 @@
         <!-- server -->
         <netty.version>4.1.108.Final</netty.version>
         <MockFtpServer.version>3.1.0</MockFtpServer.version>
-        <schedlock.version>5.10.2</schedlock.version>
+        <schedlock.version>5.13.0</schedlock.version>
         <expectit-core.version>0.9.0</expectit-core.version>
         <wiremock.version>3.3.1</wiremock.version>
         <jsch.version>0.1.55</jsch.version>
