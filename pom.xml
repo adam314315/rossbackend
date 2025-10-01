@@ -150,7 +150,7 @@
         <!-- log -->
         <logback-ext-spring.version>0.1.5</logback-ext-spring.version>
         <jcl-over-slf4j.version>2.0.13</jcl-over-slf4j.version>
-        <logback.version>1.5.6</logback.version>
+        <logback.version>1.5.19</logback.version>
         <!-- server -->
         <netty.version>4.1.108.Final</netty.version>
         <MockFtpServer.version>3.1.0</MockFtpServer.version>
