@@ -240,7 +240,7 @@
         <jvm.opens.packages>--add-opens java.base/java.lang=ALL-UNNAMED --add-opens java.base/java.lang.reflect=ALL-UNNAMED --add-opens java.base/java.util=ALL-UNNAMED --add-opens java.base/java.time=ALL-UNNAMED</jvm.opens.packages>
 
         <!-- Test dependency versions -->
-        <org.assertj.version>3.22.0</org.assertj.version>
+        <org.assertj.version>3.27.7</org.assertj.version>
         <org.testcontainers.version>1.16.3</org.testcontainers.version>
         <org.jeasy.easy-random-core.version>5.0.0</org.jeasy.easy-random-core.version>
         <com.thedeanda.lorem.version>2.2</com.thedeanda.lorem.version>
